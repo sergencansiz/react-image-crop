@@ -1,7 +1,9 @@
 import React, { Component } from 'react'
 import {touchStart , touchEnd} from './toucStartEnd'
 import {touchMove} from './touchMove'
-import {getPositionAfterDrag , wheelZoom} from './helpers'
+import {getPositionAfterDrag , 
+        wheelZoom,
+        getContainerPositionsToCroper} from './helpers'
 
 export class Cropper extends Component {
 
@@ -10,6 +12,7 @@ export class Cropper extends Component {
         super(props)
         this.image = React.createRef()
         this.croper = React.createRef()
+        this.container = React.createRef()
         this.hasWindow = typeof window !== 'undefined'
         this.mousemoves = {
             mousedown : false,
@@ -45,17 +48,26 @@ export class Cropper extends Component {
             file : null,
             ratio : this.props.ratio ? this.props.ratio : 10/16,
             maxWidth : this.props.maxWidth ? this.props.maxWidth : 600,
+            gap : this.props.gap ? this.props.gap : 40,
             scroll : 0,
-            num : 3,
+            num : this.props.lineNumbers ? this.props.num : 4,
             posLines : null,
+            linesOpacity : 0.3 ,
+            cursor : 'grab',
             croperHeight : null,
             croperWidth : null,
             imageHeight : null,
             imageWidth : null,
+            containerWidth : null,
+            containerHeight : null,
             naturalHeight : null,
             naturalWidth : null,
             mousemoves : this.mousemoves,
             touches : this.touches,
+            croperTop : null,
+            croperBottom : null,
+            croperLeft : null,
+            croperRight : null,
             imageTop : null,
             imageLeft : null,
             imageRight : null,
@@ -77,7 +89,11 @@ export class Cropper extends Component {
                 height: this.state.croperHeight,
                 background : 'rgba(0,0,0,0.3)',
                 overflow : 'hidden',
-                padding: 40
+                width : this.state.containerWidth,
+                height : this.state.containerHeight,
+                //padding: 40,
+                // width: this.state.containerWidth,
+                // height: this.state.containerHeight,
             },
             cropWraper : {
                 position: 'absolute',
@@ -88,15 +104,26 @@ export class Cropper extends Component {
                 maxHeight : this.state.maxHeight,
                 height : this.state.croperHeight,
                 background : 'transparent',
-                border : '1px solid #999',
+                border : '0px',
                 borderRadius : '0px',
+                left : this.state.croperLeft,
+                right : this.state.croperRight,
+                top : this.state.croperTop,
+                bottom : this.state.croperBottom,
                 // overflow : 'hidden',
             },
-            cropInner : {
-    
-            },
-            imageWraper : {
-
+            lines : {
+                position : 'absolute',
+                pointerEvents: 'none',
+                userSelect : 'none',
+                WebkitUserSelect: 'none',
+                MsSserSelect: 'none',
+                opacity : this.state.linesOpacity,
+                left : this.state.croperLeft,
+                right : this.state.croperRight,
+                top : this.state.croperTop,
+                bottom : this.state.croperBottom,
+                transition : 'all 0.2s ease-in-out'
             },
             image : {
                 position : 'absolute',
@@ -107,7 +134,7 @@ export class Cropper extends Component {
                 width  : this.state.imageWidth,
                 height : this.state.imageHeight,
                 overflow : 'hidden',
-                cursor:  'grab',
+                cursor:  this.state.cursor,
             }, 
             overlay : {
                 position: 'absolute',
@@ -118,6 +145,8 @@ export class Cropper extends Component {
                 textAlign:'left',
                 border: '40px solid rgba(0,0,0,0.4)',
                 pointerEvents: 'none',
+                WebkitUserSelect: 'none',
+                MsSserSelect: 'none',
               
     
             }           
@@ -168,15 +197,9 @@ export class Cropper extends Component {
     componentDidMount(){
         var croper = document.getElementById('croper')
         var image = document.getElementById('image')
-        
-        if(window.innerWidth >= 600){
-            var croperWidth = 600
-        }else{
-            var croperWidth = window.innerWidth
-        }
-        
-        let croperHeight = croperWidth * this.state.ratio
 
+        var Positions = getContainerPositionsToCroper(this.state.gap , this.state.ratio, this.container)
+        
         window.addEventListener('resize', this.handleResize);
         image.addEventListener('wheel', (e) => this.handleScroll(e));
         image.addEventListener('mousedown' , this.handleMouseDown)
@@ -188,19 +211,22 @@ export class Cropper extends Component {
         image.addEventListener('gesturestart' , this.handleGestureStart)
         image.addEventListener('ondrag' , this.handleOndrag)
         
-
-
-
         // Set Image Width and Height
-        let ratio = this.state.naturalHeight / croperHeight
+        let ratio = this.state.naturalHeight / Positions.croperHeight
         let newWidth = this.state.naturalWidth * ratio  
 
 
         this.setState({
-            croperHeight : croperHeight,
-            croperWidth  : croperWidth,
-            imageHeight : croperHeight,
+            croperHeight : Positions.croperHeight,
+            croperWidth  : Positions.croperWidth,
+            imageHeight : Positions.croperHeight,
             imageWidth  : newWidth,
+            croperLeft : Positions.croperLeft,
+            croperRight : Positions.croperRight,
+            croperTop : Positions.croperTop,
+            croperBottom : Positions.croperBottom,
+            containerHeight : Positions.containerHeight,
+            containerWidth : Positions.containerWidth,
             naturalHeight : this.state.naturalHeight,
             naturalWidth : this.state.naturalWidth,
             imageBottom : 0,
@@ -211,26 +237,36 @@ export class Cropper extends Component {
     }
 
     handleResize = () => {
-        let croperWidth
+        //let croperWidth
 
-        if(window.innerWidth >= 600){
-            croperWidth = 600
-        }else{
-            croperWidth = window.innerWidth
-        }
+        // if(window.innerWidth >= 600){
+        //     croperWidth = 600
+        // }else{
+        //     croperWidth = window.innerWidth
+        // }
 
-        let croperHeight = croperWidth * this.state.ratio
+        var Positions = getContainerPositionsToCroper(this.state.gap , this.state.ratio, this.container)
+
+        // var conParentWidth = this.container.current.parentElement.offsetWidth
+        // var croperWidth = conParentWidth
+        // let croperHeight = croperWidth * this.state.ratio
 
         // When user resize restart dimonsions 
-        let ratio = croperHeight / this.state.naturalHeight  
+        let ratio = Positions.croperHeight / this.state.naturalHeight  
         let newWidth = this.state.naturalWidth * ratio 
 
-        let gap = (croperWidth - newWidth)
+        let gap = (Positions.croperWidth - newWidth)
         this.setState({
-            //innerWidth : croperWidth,
-            croperWidth: croperWidth,
-            croperHeight : croperHeight,
-            imageHeight : croperHeight,
+            
+            croperLeft : Positions.croperLeft,
+            croperRight : Positions.croperRight,
+            croperTop : Positions.croperTop,
+            croperBottom : Positions.croperBottom,
+            croperHeight : Positions.croperHeight,
+            croperWidth  : Positions.croperWidth,
+            containerHeight : Positions.containerHeight,
+            containerWidth : Positions.containerWidth,
+            imageHeight : Positions.croperHeight,
             imageWidth  : newWidth,
             imageLeft : gap/2,
             imageRight : gap/2,
@@ -247,7 +283,15 @@ export class Cropper extends Component {
         //let imageHeight = this.state.imageHeight
 
         var Positions = wheelZoom(e, this.croper , this.image)
-
+        if(e.deltaY < 0 ){
+            this.setState({
+                cursor : 'zoom-in'
+            })
+        }else{
+            this.setState({
+                cursor : 'zoom-out'
+            })
+        }
 
         if(Positions !== null){
             this.setState({
@@ -281,11 +325,15 @@ export class Cropper extends Component {
 
 
     handleMouseMove = (e) =>{
-        console.log(e)
+        
         var touch = {
             startX : this.state.mousemoves.mousedownOffsetX,
             startY : this.state.mousemoves.mousedownOffsetY,
         }
+
+        this.setState({
+            cursor : 'grab'
+        })
         //e.preventDefault()
         //When user moves image inside croper
         // It runs only if image width greater than croper width
@@ -293,6 +341,7 @@ export class Cropper extends Component {
             var moves = getPositionAfterDrag(Cropper.getMousePoint(e) , touch , this.croper, this.image)
             //console.log(moves)
             this.setState({
+                cursor : 'grabbing',
                 imageLeft : moves.imageMoveLeft,
                 imageRight : moves.imageMoveRight,
                 imageTop : moves.imageMoveTop,
@@ -311,7 +360,9 @@ export class Cropper extends Component {
         this.mousemoves.mousedownOffsetX = e.offsetX
         this.mousemoves.mousedownOffsetY = e.offsetY
         this.setState({
-            mousemoves : this.mousemoves
+            cursor : 'grabbing',
+            mousemoves : this.mousemoves,
+            linesOpacity : 0.8,
         })
     }
 
@@ -321,7 +372,9 @@ export class Cropper extends Component {
         this.mousemoves.mouseup = true
 
         this.setState({
-            mousemoves : this.mousemoves
+            cursor : 'grab',
+            mousemoves : this.mousemoves,
+            linesOpacity : 0.3
         })
     }
 
@@ -336,7 +389,8 @@ export class Cropper extends Component {
         this.touches.touchStartY = points.y
         
         this.setState({
-            touches : this.touches
+            touches : this.touches,
+            linesOpacity : 0.8,
         })
     }
 
@@ -350,7 +404,8 @@ export class Cropper extends Component {
         this.touches.touchEndY = points.y
         
         this.setState({
-            touches : this.touches
+            touches : this.touches,
+            linesOpacity : 0.3,
         })
     }
 
@@ -394,8 +449,8 @@ export class Cropper extends Component {
 
         let result = []
 
-        let left = (this.state.croperWidth / this.state.num) / 2
-        let top = (this.state.croperHeight / this.state.num) / 2
+        let left = (this.state.croperWidth / this.state.num) 
+        let top = (this.state.croperHeight / this.state.num) 
 
         for(var i=0; i<this.state.num; i++){
 
@@ -436,11 +491,11 @@ export class Cropper extends Component {
 
     render() {
         return (
-            <div style={this.returnStyles().mainWraper}>
+            <div ref={this.container} style={this.returnStyles().mainWraper}>
                 <div ref={this.croper} id="croper" style={this.returnStyles().cropWraper} className="photo-crop-wrapper">
                      <img ref={this.image} id="image" style={this.returnStyles().image} src={this.state.file} />
                 </div>
-                <div className="lineWraper" style={{userSselect: 'none'}}>
+                <div className="lineWraper" style={this.returnStyles().lines} >
                         {this.state.posLines}
                 </div>
                 <div style={this.returnStyles().overlay}></div>
